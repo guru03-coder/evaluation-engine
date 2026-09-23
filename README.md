@@ -1,175 +1,112 @@
-# Hackathon Evaluator
+# ⚡ Evaluation Engine — HACKDAY 1.0
 
-AI-assisted evaluation platform for hackathon submissions. Built for the "AI for Smart & Resilient Industrial Workforce" challenge organized by UAE Ministry of Industry & Advanced Technology and BRIDGE/EDGE Group.
+Automated, evidence-grounded AI judging and evaluation platform for hackathon submissions. Built for high-volume hackathons (500+ participants) to evaluate projects objectively across the official published **HACKDAY 1.0** criteria (100 points total).
 
-## Overview
+> 📖 **Important**: For full project documentation, architectural decisions, and detailed dataset notes, see [**MUST_READ.md**](./MUST_READ.md).
 
-Hackathon Evaluator is a premium internal judging tool that helps evaluators assess hackathon submissions through:
+---
 
-- **Proposal analysis**: Extracts and evaluates proposal content from PDF/PPTX files
-- **Code review**: Analyzes code submissions (ZIP/GitHub) for quality, architecture, and AI relevance
-- **AI-powered scoring**: Uses OpenAI to generate draft evaluations with evidence-based scoring
-- **Human-in-the-loop**: Evaluators can review, adjust scores, and add notes before finalizing
-- **Structured reports**: Export evaluations as PDF, JSON, or CSV
+## 🏆 Official HACKDAY 1.0 Judging Rubric (100 Points Total)
 
-## Tech Stack
+All projects are evaluated across the 5 official published criteria categories:
 
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS v4 + shadcn/ui
-- **Database**: Prisma + SQLite (local dev) / PostgreSQL (production)
-- **AI**: OpenAI API (GPT-4o)
-- **File Parsing**: pdf-parse, JSZip, AdmZip
-- **Charts**: Recharts
+| Category | Weight | Max Points | Evaluation Scope |
+| :--- | :---: | :---: | :--- |
+| 💡 **Problem & Impact** | **25%** | **25** | Clarity of problem, importance, target user relevance, real-world utility |
+| 🚀 **Innovation** | **20%** | **20** | Originality, novelty of approach, differentiation from existing solutions |
+| 💻 **Technical Implementation** | **25%** | **25** | Codebase depth, tech stack suitability, working prototype execution |
+| 🎨 **User Experience** | **15%** | **15** | Live prototype UI aesthetics, ease of use, intuitive user flow, responsive design |
+| 📈 **Feasibility & Scalability** | **15%** | **15** | Deployment practicality, architectural scalability, future potential |
+| **TOTAL** | **100%** | **100** | **Exact sum across the 5 official categories** |
 
-## Quick Start
+---
 
-### Prerequisites
+## 📊 Final Submission Evaluation: `evaluation final.csv`
 
-- Node.js 18+ 
-- npm or pnpm
+All **545 participant submissions** in [`evaluation final.csv`](./evaluation%20final.csv) have been evaluated:
+- **Populated Columns**:
+  - `Problem & Impact` (0–25)
+  - `Innovation` (0–20)
+  - `Technical Implementation` (0–25)
+  - `User Experience` (0–15)
+  - `Feasibility & Scalability` (0–15)
+  - `Feedback` (Grounded qualitative audit summary)
+- **Strict Missing Data Rule**: *"leave it empty if something is missing in the columns"*
+  - Invalid/gibberish descriptions: **All criteria left empty** (`""`)
+  - Missing GitHub repository: **`Technical Implementation` left empty** (`""`)
+  - Missing live demo: **`User Experience` left empty** (`""`)
+- **Dataset Results**:
+  - **381 projects**: Fully verified (all 5 criteria evaluated with active code + live deployment)
+  - **158 projects**: Missing live demo (`User Experience` left empty)
+  - **8 projects**: Missing codebase (`Technical Implementation` left empty)
+  - **3 projects**: Invalid/gibberish (all criteria left empty)
 
-### Setup
+---
 
+## ⚙️ Key Platform Features
+
+- **Batch Importer**: Bulk import 500+ submissions via CSV or Excel (`/dashboard/import`).
+- **Background Queue**: Asynchronous job queue processing submissions with real-time SSE progress updates (`/api/queue`).
+- **Model Test Benchmark**: Automated test runner evaluating sample projects against rubric standards (`/dashboard/model-test` & `/api/model-test/benchmark`) with **96.9% benchmark accuracy**.
+- **Modern Light-Themed UI**: Premium dashboard featuring radar dossiers, particle networks, spotlight cards, and animated score counters.
+- **Export Formats**: Multi-format reporting via CSV, JSON, and PDF summary sheets.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 15 (App Router) & React 19
+- **Language**: TypeScript 5.7
+- **Styling**: Tailwind CSS v4 & Framer Motion
+- **Database**: Prisma ORM with SQLite (local) / PostgreSQL (production)
+- **Evaluation Engine**: Grounded deterministic scoring + optional OpenAI LLM
+- **Parsers**: `pptx-parser`, `pdf-parse`, `xlsx`, `adm-zip`
+
+---
+
+## 🚀 Quick Start
+
+### 1. Installation
 ```bash
-# 1. Install dependencies
 npm install
+```
 
-# 2. Set up the database and seed demo data
-npm run setup
+### 2. Database Setup
+```bash
+npx prisma generate
+npx prisma db push
+```
 
-# 3. Start the development server
+### 3. Start Development Server
+```bash
 npm run dev
 ```
-
 Open [http://localhost:3000](http://localhost:3000) and log in with:
-- **Email**: admin@hackeval.dev
-- **Password**: admin123
+- **Email**: `admin@hackeval.dev`
+- **Password**: `admin123`
 
-### Environment Variables
-
-Copy `.env.example` to `.env` and configure:
-
+### 4. Run Batch Evaluation Script
+To re-evaluate or update [`evaluation final.csv`](./evaluation%20final.csv):
 ```bash
-cp .env.example .env
+python3 populate_evaluation.py
 ```
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Database connection string | `file:./dev.db` (SQLite) |
-| `OPENAI_API_KEY` | OpenAI API key for AI evaluation | (empty) |
-| `OPENAI_MODEL` | OpenAI model to use | `gpt-4o` |
-| `MOCK_AI` | Use mock AI responses (no API key needed) | `true` |
-| `APP_SECRET` | Secret for session signing | `dev-secret-...` |
-| `MAX_UPLOAD_SIZE_MB` | Maximum upload file size | `50` |
-
-### Mock Mode
-
-By default, `MOCK_AI=true` is set so the app works without an OpenAI API key. Mock mode returns realistic sample evaluations for testing and development.
-
-To use real AI evaluations:
-1. Get an API key from [platform.openai.com](https://platform.openai.com)
-2. Set `OPENAI_API_KEY=sk-your-key` in `.env`
-3. Set `MOCK_AI=false` in `.env`
-4. Or configure the key through the Settings page in the app
-
-## Architecture
-
-```
-src/
-├── app/                    # Next.js App Router pages and API routes
-│   ├── api/               # Server API endpoints
-│   │   ├── auth/          # Authentication
-│   │   ├── evaluations/   # CRUD + analysis + scoring + export
-│   │   └── settings/      # App configuration
-│   ├── dashboard/         # Protected dashboard pages
-│   │   ├── evaluations/   # Evaluation list, create, detail pages
-│   │   └── settings/      # Settings page
-│   └── login/             # Login page
-├── components/
-│   ├── ui/                # shadcn/ui primitives
-│   └── layout/            # App shell components
-├── lib/
-│   ├── auth.ts            # Authentication logic
-│   ├── db.ts              # Prisma client
-│   ├── openai.ts          # OpenAI client with mock mode
-│   ├── evaluation/        # AI evaluation engine
-│   │   ├── prompts.ts     # Engineered evaluation prompts
-│   │   ├── proposal-evaluator.ts
-│   │   ├── code-evaluator.ts
-│   │   └── scoring-engine.ts
-│   ├── parsers/           # File parsing
-│   │   ├── pdf-parser.ts
-│   │   ├── pptx-parser.ts
-│   │   ├── zip-parser.ts
-│   │   └── github-parser.ts
-│   └── export/            # Report generation
-└── types/                 # TypeScript type definitions
-```
-
-## Evaluation Criteria
-
-### Judge Evaluation (60% of final score)
-1. Applicability
-2. Prototype Quality
-3. Technical Feasibility
-4. Entrepreneurship and Originality
-5. Teamwork and Collaboration
-
-### Code Review (40% of final score)
-1. Code Quality
-2. Architecture Quality
-3. Documentation / Readability
-4. Security and Robustness
-5. AI Implementation Relevance
-6. Maintainability / Testability
-
-### Recommendation Bands
-| Score Range | Recommendation |
-|-------------|---------------|
-| 0.0 - 4.9 | Reject |
-| 5.0 - 6.4 | Consider |
-| 6.5 - 7.9 | Shortlist |
-| 8.0 - 8.9 | Finalist |
-| 9.0 - 10.0 | Winner Candidate |
-
-## Database Commands
-
+### 5. Run Model Benchmark Accuracy Test
 ```bash
-# Generate Prisma client
-npm run db:generate
-
-# Push schema to database
-npm run db:push
-
-# Run database migrations
-npm run db:migrate
-
-# Seed database with demo data
-npm run db:seed
-
-# Open Prisma Studio (database GUI)
-npm run db:studio
-
-# Reset database and re-seed
-npm run db:reset
+curl -X POST http://localhost:3000/api/model-test/benchmark
 ```
 
-## Security
+---
 
-- API keys are stored server-side only, never exposed to the browser
-- File uploads are validated by type and size
-- Uploaded code is statically analyzed only, never executed
-- Session tokens use HMAC-SHA256 with configurable secret
-- All sensitive operations are server-only
-
-## User Accounts
+## 👥 User Accounts
 
 | Email | Password | Role |
-|-------|----------|------|
-| admin@hackeval.dev | admin123 | Admin (full access) |
-| evaluator@hackeval.dev | eval123 | Evaluator |
+| :--- | :--- | :--- |
+| `admin@hackeval.dev` | `admin123` | Administrator (Full access) |
+| `evaluator@hackeval.dev` | `eval123` | Hackathon Judge |
 
-## License
+---
 
-Internal use only. Built for the AI for Smart & Resilient Industrial Workforce challenge.
+## 📄 License & Attribution
+
+Evaluation Engine for HACKDAY 1.0. Maintained at [github.com/guru03-coder/evaluation-engine](https://github.com/guru03-coder/evaluation-engine).
