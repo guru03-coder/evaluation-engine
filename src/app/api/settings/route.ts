@@ -20,7 +20,11 @@ export async function GET() {
   }
 
   // Include env-based values
-  settingsMap["mock_mode"] = process.env.MOCK_AI || "false";
+  const mockSetting = await db.appSetting.findUnique({ where: { key: "mock_mode" } });
+  settingsMap["mock_mode"] = mockSetting?.value || process.env.MOCK_AI || "false";
+  const baseUrlSetting = await db.appSetting.findUnique({ where: { key: "openai_base_url" } });
+  settingsMap["openai_base_url"] = baseUrlSetting?.value || process.env.OPENAI_BASE_URL || "";
+
   if (!settingsMap["openai_model"]) {
     settingsMap["openai_model"] = process.env.OPENAI_MODEL || "gpt-4o";
   }
@@ -46,7 +50,15 @@ export async function PUT(req: Request) {
     }
 
     // Allowed settings
-    const allowedKeys = ["openai_api_key", "openai_model", "judge_weight", "code_weight"];
+    const allowedKeys = [
+      "openai_api_key",
+      "openai_model",
+      "openai_base_url",
+      "mock_mode",
+      "judge_weight",
+      "code_weight",
+      "evaluation_stage",
+    ];
     if (!allowedKeys.includes(key)) {
       return NextResponse.json({ success: false, error: "Invalid setting key" }, { status: 400 });
     }
@@ -57,8 +69,8 @@ export async function PUT(req: Request) {
       update: { value },
     });
 
-    // Reset OpenAI client if key changed
-    if (key === "openai_api_key") {
+    // Reset OpenAI client if key, model, or URL changed
+    if (key === "openai_api_key" || key === "openai_base_url" || key === "openai_model") {
       resetOpenAIClient();
     }
 

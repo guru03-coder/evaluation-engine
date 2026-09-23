@@ -73,22 +73,42 @@ export async function PUT(
       include: { criterion: { include: { template: true } } },
     });
 
-    const judgeScores = updatedScores.filter(
-      (s) => s.criterion.template.category === "judge_evaluation"
-    );
-    const codeScores = updatedScores.filter(
-      (s) => s.criterion.template.category === "code_review"
+    const isHackdayOfficial = updatedScores.some(
+      (s) => s.criterion.template.category === "hackday_official"
     );
 
-    const judgeAvg = judgeScores.length > 0
-      ? judgeScores.reduce((sum, s) => sum + s.score, 0) / judgeScores.length
-      : result.judgeScore;
+    let finalScore: number;
+    let judgeAvg = result.judgeScore;
+    let codeAvg = result.codeScore;
 
-    const codeAvg = codeScores.length > 0
-      ? codeScores.reduce((sum, s) => sum + s.score, 0) / codeScores.length
-      : result.codeScore;
+    if (isHackdayOfficial) {
+      finalScore = parseFloat(
+        updatedScores.reduce((sum, s) => sum + s.score, 0).toFixed(1)
+      );
+      const problemCrit = updatedScores.find((s) => s.criterion.name.toLowerCase().includes("problem"));
+      const innoCrit = updatedScores.find((s) => s.criterion.name.toLowerCase().includes("innovation"));
+      const techCrit = updatedScores.find((s) => s.criterion.name.toLowerCase().includes("technical"));
+      judgeAvg = parseFloat(((problemCrit?.score || 0) + (innoCrit?.score || 0)).toFixed(1));
+      codeAvg = techCrit?.score || 0;
+    } else {
+      const judgeScores = updatedScores.filter(
+        (s) => s.criterion.template.category === "judge_evaluation"
+      );
+      const codeScores = updatedScores.filter(
+        (s) => s.criterion.template.category === "code_review"
+      );
 
-    const finalScore = computeFinalScore(judgeAvg, codeAvg, result.judgeWeight, result.codeWeight);
+      judgeAvg = judgeScores.length > 0
+        ? judgeScores.reduce((sum, s) => sum + s.score, 0) / judgeScores.length
+        : result.judgeScore;
+
+      codeAvg = codeScores.length > 0
+        ? codeScores.reduce((sum, s) => sum + s.score, 0) / codeScores.length
+        : result.codeScore;
+
+      finalScore = computeFinalScore(judgeAvg, codeAvg, result.judgeWeight, result.codeWeight);
+    }
+
     const recommendation = calculateRecommendation(finalScore);
 
     const updateData: Record<string, unknown> = {

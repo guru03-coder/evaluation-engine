@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseJsonSafe } from "@/lib/utils";
 import { generateCsvExport } from "@/lib/export/json-export";
+import { generatePdfExport } from "@/lib/export/pdf-export";
 import type { EvaluationExport } from "@/types";
 
 export async function GET(
@@ -53,6 +54,8 @@ export async function GET(
     weaknesses: parseJsonSafe(result.weaknesses, []),
     risks: parseJsonSafe(result.risks, []),
     missingInfo: parseJsonSafe(result.missingInfo, []),
+    verifiedEvidence: parseJsonSafe(result.verifiedEvidence || "[]", []),
+    unverifiedClaims: parseJsonSafe(result.unverifiedClaims || "[]", []),
     reviewerNotes: result.reviewerNotes,
     scores: result.scores.map((s) => ({
       criterionName: s.criterion.name,
@@ -75,6 +78,16 @@ export async function GET(
       details: JSON.stringify({ format }),
     },
   });
+
+  if (format === "pdf") {
+    const pdfBytes = generatePdfExport(exportData);
+    return new NextResponse(Buffer.from(pdfBytes), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${session.teamName.replace(/[^a-zA-Z0-9]/g, "_")}_evaluation.pdf"`,
+      },
+    });
+  }
 
   if (format === "csv") {
     const csv = generateCsvExport(exportData);

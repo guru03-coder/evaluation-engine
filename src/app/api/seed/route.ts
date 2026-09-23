@@ -43,63 +43,60 @@ async function seed() {
       },
     });
 
-    // Judge Evaluation Template
-    const judgeTemplate = await db.rubricTemplate.create({
+    // Rubric Template (Official HACKDAY 1.0)
+    const hackdayTemplate = await db.rubricTemplate.create({
       data: {
-        id: "judge-eval-default",
-        name: "Judge Evaluation",
-        category: "judge_evaluation",
-        description: "Standard evaluation criteria for judge panel assessment (60% of final score)",
+        id: "hackday-1-official",
+        name: "HACKDAY 1.0 Official Rubric",
+        category: "hackday_official",
+        description: "Official HACKDAY 1.0 100-Point Scoring Rubric (5 Categories)",
         isDefault: true,
       },
     });
 
-    const judgeCriteria = [
-      { name: "Applicability", description: "How well the project demonstrates potential to solve the problems related to the proposed challenge", weight: 1.0, sortOrder: 1 },
-      { name: "Prototype Quality", description: "The quality of the prototype shown in the demonstration, particularly its functionalities", weight: 1.0, sortOrder: 2 },
-      { name: "Technical Feasibility", description: "How technically viable the solution is for implementation and whether it can truly scale", weight: 1.0, sortOrder: 3 },
-      { name: "Entrepreneurship and Originality", description: "The extent to which the solution shows boldness and takes risks, rather than merely replicating existing solutions", weight: 1.0, sortOrder: 4 },
-      { name: "Teamwork and Collaboration", description: "How well the team acts as a true team while pitching their ideas", weight: 1.0, sortOrder: 5 },
-    ];
-
-    for (const c of judgeCriteria) {
-      await db.rubricCriterion.create({
-        data: {
-          id: `judge-${c.sortOrder}`,
-          templateId: judgeTemplate.id,
-          name: c.name,
-          description: c.description,
-          weight: c.weight,
-          sortOrder: c.sortOrder,
-        },
-      });
-    }
-
-    // Code Review Template
-    const codeTemplate = await db.rubricTemplate.create({
-      data: {
-        id: "code-review-default",
-        name: "Code Review",
-        category: "code_review",
-        description: "Technical code review criteria (40% of final score)",
-        isDefault: true,
+    const officialCriteria = [
+      {
+        id: "hackday-1",
+        name: "Problem & Impact",
+        description: "Problem clarity (5), Problem significance (5), Target-user relevance (5), Solution impact (5), Real-world usefulness (5) — Max 25 pts",
+        weight: 25.0,
+        sortOrder: 1,
       },
-    });
-
-    const codeCriteria = [
-      { name: "Code Quality", description: "Code style, consistency, error handling, and patterns", weight: 1.0, sortOrder: 1 },
-      { name: "Architecture Quality", description: "Separation of concerns, modularity, scalability design", weight: 1.0, sortOrder: 2 },
-      { name: "Documentation / Readability", description: "README, comments, API docs, setup instructions", weight: 1.0, sortOrder: 3 },
-      { name: "Security and Robustness", description: "Authentication, input validation, error handling, secrets management", weight: 1.0, sortOrder: 4 },
-      { name: "AI Implementation Relevance", description: "How central and well-implemented the AI component is", weight: 1.0, sortOrder: 5 },
-      { name: "Maintainability / Testability", description: "Tests, CI/CD, configuration management, reproducibility", weight: 1.0, sortOrder: 6 },
+      {
+        id: "hackday-2",
+        name: "Innovation",
+        description: "Originality (5), Novel approach (5), Differentiation (5), Creative use of technology (5) — Max 20 pts",
+        weight: 20.0,
+        sortOrder: 2,
+      },
+      {
+        id: "hackday-3",
+        name: "Technical Implementation",
+        description: "Core functionality (7), Technical depth (5), Technology selection (4), Implementation quality (5), Working prototype (4) — Max 25 pts",
+        weight: 25.0,
+        sortOrder: 3,
+      },
+      {
+        id: "hackday-4",
+        name: "User Experience",
+        description: "UI quality (4), Ease of use (3), User flow (3), Responsive design (3), Overall experience (2) — Max 15 pts",
+        weight: 15.0,
+        sortOrder: 4,
+      },
+      {
+        id: "hackday-5",
+        name: "Feasibility & Scalability",
+        description: "Technical feasibility (4), Deployment practicality (3), Scalability (4), Future potential (4) — Max 15 pts",
+        weight: 15.0,
+        sortOrder: 5,
+      },
     ];
 
-    for (const c of codeCriteria) {
+    for (const c of officialCriteria) {
       await db.rubricCriterion.create({
         data: {
-          id: `code-${c.sortOrder}`,
-          templateId: codeTemplate.id,
+          id: c.id,
+          templateId: hackdayTemplate.id,
           name: c.name,
           description: c.description,
           weight: c.weight,

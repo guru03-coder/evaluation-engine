@@ -10,6 +10,14 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     title: "Dashboard",
     description: "Overview of all evaluation activity",
   },
+  "/dashboard/model-test": {
+    title: "Model Accuracy Test",
+    description: "Benchmark AI reasoning and anti-hallucination accuracy",
+  },
+  "/dashboard/import": {
+    title: "Import Submissions",
+    description: "Upload and batch-evaluate 500 participant submissions",
+  },
   "/dashboard/evaluations": {
     title: "Evaluations",
     description: "Manage all submission evaluations",

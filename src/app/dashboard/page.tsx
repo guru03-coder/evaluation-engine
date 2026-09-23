@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import {
   FileSearch,
   PlusCircle,
-  Clock,
-  CheckCircle2,
-  BarChart3,
   TrendingUp,
   ArrowRight,
 } from "lucide-react";
 import { formatDate, getStatusColor, getScoreColor, getRecommendationLabel, getRecommendationColor } from "@/lib/utils";
+import { QueueStatusCard } from "@/components/dashboard/queue-status-card";
+import { DashboardClientStats } from "@/components/dashboard/dashboard-client-stats";
+import { AmbientBackground } from "@/components/ui/motion/ambient-background";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
     db.evaluationSession.count({ where: { status: "finalized" } }),
     db.evaluationSession.findMany({
       orderBy: { updatedAt: "desc" },
-      take: 5,
+      take: 6,
       include: {
         evaluationResult: true,
         createdBy: { select: { name: true } },
@@ -40,103 +40,90 @@ export default async function DashboardPage() {
   });
   const averageScore = avgResult._avg.finalScore || 0;
 
-  const stats = [
+  const statItems = [
     {
       label: "Total Submissions",
       value: totalSubmissions,
-      icon: FileSearch,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10 border-blue-500/20",
+      iconName: "FileSearch" as const,
+      color: "text-blue-600",
+      bg: "bg-blue-50 border-blue-200",
     },
     {
       label: "Pending Analysis",
       value: pendingAnalyses,
-      icon: Clock,
-      color: "text-amber-400",
-      bg: "bg-amber-500/10 border-amber-500/20",
+      iconName: "Clock" as const,
+      color: "text-amber-600",
+      bg: "bg-amber-50 border-amber-200",
     },
     {
       label: "Finalized",
       value: finalized,
-      icon: CheckCircle2,
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10 border-emerald-500/20",
+      iconName: "CheckCircle2" as const,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50 border-emerald-200",
     },
     {
       label: "Average Score",
-      value: averageScore.toFixed(1),
-      icon: BarChart3,
-      color: "text-purple-400",
-      bg: "bg-purple-500/10 border-purple-500/20",
+      value: Number(averageScore.toFixed(1)),
+      decimals: 1,
+      iconName: "BarChart3" as const,
+      color: "text-purple-600",
+      bg: "bg-purple-50 border-purple-200",
     },
   ];
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header with CTA */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
-          <p className="text-muted-foreground">
-            Here&apos;s an overview of your evaluation activity
-          </p>
-        </div>
-        <Link href="/dashboard/evaluations/new">
-          <Button variant="glow" size="lg">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Evaluation
-          </Button>
-        </Link>
-      </div>
+  const recent = sessions.map((s) => ({
+    id: s.id,
+    teamName: s.teamName,
+    projectName: s.projectName || s.teamName,
+    score: s.evaluationResult?.finalScore || 0,
+    recommendation: s.evaluationResult?.recommendation || "",
+  }));
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label} className="glass glass-hover">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className={`text-3xl font-bold mt-1 ${stat.color}`}>
-                    {stat.value}
-                  </p>
-                </div>
-                <div className={`h-12 w-12 rounded-xl ${stat.bg} border flex items-center justify-center`}>
-                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+  return (
+    <AmbientBackground showGrid={true} className="space-y-6 animate-fade-in -m-6 p-6">
+      {/* Ticker, Header & 3D Tilt Cards */}
+      <DashboardClientStats stats={statItems} recentSubmissions={recent} />
+
+      {/* Live Queue Progress & Worker Controls */}
+      <QueueStatusCard />
 
       {/* Recent Evaluations */}
-      <Card className="glass">
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="bg-white border-slate-200 relative overflow-hidden shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100">
           <div>
-            <CardTitle className="text-lg">Recent Evaluations</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">Latest submission evaluations</p>
+            <CardTitle className="text-lg font-bold text-slate-900">Recent Evaluations</CardTitle>
+            <p className="text-sm text-slate-500 mt-0.5">Latest submission evaluations with verified audits</p>
           </div>
           <Link href="/dashboard/evaluations">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="hover:text-blue-600 font-medium">
               View All <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </Link>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {sessions.length === 0 ? (
-            <div className="text-center py-12">
-              <FileSearch className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-muted-foreground">No evaluations yet</h3>
-              <p className="text-sm text-muted-foreground/70 mt-1 mb-4">
-                Get started by creating your first evaluation
+            <div className="text-center py-12 px-4">
+              <div className="h-14 w-14 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <FileSearch className="h-7 w-7" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">Ready for Submissions</h3>
+              <p className="text-sm text-slate-500 max-w-md mx-auto mt-1 mb-6">
+                All mock test data has been purged. Benchmark your model accuracy first, or upload your 500-submission spreadsheet to begin automated evaluations.
               </p>
-              <Link href="/dashboard/evaluations/new">
-                <Button variant="outline" size="sm">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Create Evaluation
-                </Button>
-              </Link>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link href="/dashboard/model-test">
+                  <Button variant="outline" size="sm" className="border-slate-200 text-slate-700 hover:bg-slate-50">
+                    Test Model Accuracy
+                  </Button>
+                </Link>
+                <Link href="/dashboard/import">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Import Submissions
+                  </Button>
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -144,20 +131,20 @@ export default async function DashboardPage() {
                 <Link
                   key={session.id}
                   href={`/dashboard/evaluations/${session.id}`}
-                  className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-white/[0.02] hover:border-border transition-all duration-200 group"
+                  className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-white/[0.03] hover:border-primary/30 transition-all duration-300 group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                      <span className="text-sm font-bold text-muted-foreground">
-                        {session.teamName.charAt(0).toUpperCase()}
+                    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center border border-border/40 group-hover:scale-105 transition-transform">
+                      <span className="text-sm font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                        {(session.projectName || session.teamName).charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium group-hover:text-primary transition-colors">
-                        {session.teamName}
+                      <p className="font-medium group-hover:text-primary transition-colors text-sm">
+                        {session.projectName || session.teamName}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {session.university || "No university"} &middot; {formatDate(session.updatedAt)}
+                        {session.teamName} &middot; {session.university || "General Track"} &middot; {formatDate(session.updatedAt)}
                       </p>
                     </div>
                   </div>
@@ -165,8 +152,8 @@ export default async function DashboardPage() {
                     {session.evaluationResult && session.evaluationResult.finalScore > 0 && (
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className={`text-sm font-semibold ${getScoreColor(session.evaluationResult.finalScore)}`}>
-                          {session.evaluationResult.finalScore.toFixed(1)}
+                        <span className={`text-sm font-bold ${getScoreColor(session.evaluationResult.finalScore)}`}>
+                          {(session.evaluationResult.finalScore * 10).toFixed(0)}/100
                         </span>
                         {session.evaluationResult.recommendation && (
                           <Badge className={getRecommendationColor(session.evaluationResult.recommendation)}>
@@ -185,6 +172,6 @@ export default async function DashboardPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </AmbientBackground>
   );
 }

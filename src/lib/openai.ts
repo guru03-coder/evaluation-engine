@@ -22,19 +22,50 @@ export async function getOpenAIModel(): Promise<string> {
   return setting?.value || process.env.OPENAI_MODEL || "gpt-4o";
 }
 
-export function isMockMode(): boolean {
+export async function getOpenAIBaseUrl(): Promise<string | undefined> {
+  if (process.env.OPENAI_BASE_URL) {
+    return process.env.OPENAI_BASE_URL;
+  }
+  const setting = await db.appSetting.findUnique({
+    where: { key: "openai_base_url" },
+  });
+  return setting?.value || undefined;
+}
+
+export async function isMockMode(): Promise<boolean> {
+  const setting = await db.appSetting.findUnique({
+    where: { key: "mock_mode" },
+  });
+  if (setting && setting.value) {
+    return setting.value === "true";
+  }
+
+  // If user has provided an API key or base URL, prefer REAL model evaluation
+  const key = await getOpenAIKey();
+  const baseUrl = await getOpenAIBaseUrl();
+  if (key || baseUrl) {
+    return false;
+  }
+
   return process.env.MOCK_AI === "true";
 }
 
 export async function getOpenAIClient(): Promise<OpenAI> {
   if (openaiClient) return openaiClient;
   const apiKey = await getOpenAIKey();
-  if (!apiKey) throw new Error("OpenAI API key not configured");
-  openaiClient = new OpenAI({ apiKey });
+  const baseURL = await getOpenAIBaseUrl();
+
+  const effectiveKey = apiKey || (baseURL ? "local-key" : "");
+  if (!effectiveKey) throw new Error("OpenAI API key or local model endpoint not configured");
+
+  openaiClient = new OpenAI({
+    apiKey: effectiveKey,
+    baseURL: baseURL || undefined,
+  });
   return openaiClient;
 }
 
-// Reset client when key changes
+// Reset client when key or URL changes
 export function resetOpenAIClient(): void {
   openaiClient = null;
 }
@@ -50,7 +81,7 @@ interface ChatCompletionOptions {
 export async function chatCompletion(
   options: ChatCompletionOptions
 ): Promise<string> {
-  if (isMockMode()) {
+  if (await isMockMode()) {
     return getMockResponse(options.systemPrompt);
   }
 
@@ -362,6 +393,17 @@ function getMockResponse(systemPrompt: string): string {
       "Scalability not fully validated",
       "Limited testing may hide reliability issues",
     ],
-    confidence: 0.78,
+    verifiedEvidence: [
+      "✓ GitHub repository with working code structure and modular components",
+      "✓ Clear architecture separating API layer, data models, and services",
+      "✓ Core AI/ML pipeline logic identified in repository",
+      "✓ Deployment containerization (Docker) and setup documentation provided",
+    ],
+    unverifiedClaims: [
+      "⚠ Physical hardware/edge device implementation not verifiable from code",
+      "⚠ Real-world industrial stress testing & latency benchmarks unverified",
+      "⚠ Enterprise security audit and data compliance unverified",
+    ],
+    confidence: 0.84,
   });
 }

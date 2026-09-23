@@ -30,22 +30,22 @@ export function truncate(str: string, length: number): string {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    draft: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
-    analyzing: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    analyzed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    reviewed: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-    finalized: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    draft: "bg-slate-100 text-slate-700 border-slate-200",
+    analyzing: "bg-amber-50 text-amber-700 border-amber-200",
+    analyzed: "bg-blue-50 text-blue-700 border-blue-200",
+    reviewed: "bg-purple-50 text-purple-700 border-purple-200",
+    finalized: "bg-emerald-50 text-emerald-700 border-emerald-200",
   };
   return colors[status] || colors.draft;
 }
 
 export function getRecommendationColor(recommendation: string): string {
   const colors: Record<string, string> = {
-    reject: "bg-red-500/20 text-red-400 border-red-500/30",
-    consider: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    shortlist: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    finalist: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-    winner_candidate: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    reject: "bg-red-50 text-red-700 border-red-200",
+    consider: "bg-amber-50 text-amber-700 border-amber-200",
+    shortlist: "bg-blue-50 text-blue-700 border-blue-200",
+    finalist: "bg-purple-50 text-purple-700 border-purple-200",
+    winner_candidate: "bg-emerald-50 text-emerald-700 border-emerald-200",
   };
   return colors[recommendation] || colors.consider;
 }
@@ -61,27 +61,29 @@ export function getRecommendationLabel(recommendation: string): string {
   return labels[recommendation] || "Pending";
 }
 
-export function getScoreColor(score: number): string {
-  if (score >= 9) return "text-emerald-400";
-  if (score >= 8) return "text-green-400";
-  if (score >= 6.5) return "text-blue-400";
-  if (score >= 5) return "text-amber-400";
-  return "text-red-400";
+export function getScoreColor(score: number, maxScore: number = 10): string {
+  const normalized = maxScore > 10 ? (score / maxScore) * 10 : (score > 10 ? score / 10 : score);
+  if (normalized >= 9) return "text-emerald-700";
+  if (normalized >= 8) return "text-emerald-600";
+  if (normalized >= 6.5) return "text-blue-600";
+  if (normalized >= 5) return "text-amber-600";
+  return "text-red-600";
 }
 
-export function getScoreBgColor(score: number): string {
-  if (score >= 9) return "bg-emerald-500/20";
-  if (score >= 8) return "bg-green-500/20";
-  if (score >= 6.5) return "bg-blue-500/20";
-  if (score >= 5) return "bg-amber-500/20";
-  return "bg-red-500/20";
+export function getScoreBgColor(score: number, maxScore: number = 10): string {
+  const normalized = maxScore > 10 ? (score / maxScore) * 10 : (score > 10 ? score / 10 : score);
+  if (normalized >= 8) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (normalized >= 6.5) return "bg-blue-50 text-blue-700 border-blue-200";
+  if (normalized >= 5) return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-red-50 text-red-700 border-red-200";
 }
 
 export function calculateRecommendation(finalScore: number): string {
-  if (finalScore >= 9.0) return "winner_candidate";
-  if (finalScore >= 8.0) return "finalist";
-  if (finalScore >= 6.5) return "shortlist";
-  if (finalScore >= 5.0) return "consider";
+  const normalized100 = finalScore <= 10 ? finalScore * 10 : finalScore;
+  if (normalized100 >= 90.0) return "winner_candidate";
+  if (normalized100 >= 80.0) return "finalist";
+  if (normalized100 >= 65.0) return "shortlist";
+  if (normalized100 >= 50.0) return "consider";
   return "reject";
 }
 

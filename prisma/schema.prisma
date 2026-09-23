@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -27,9 +27,23 @@ model EvaluationSession {
   university      String   @default("")
   members         String   @default("") // JSON array stored as string
   category        String   @default("AI Smart Worker Assistant")
+  projectName     String   @default("")
+  description     String   @default("")
+  leaderName      String   @default("")
+  leaderEmail     String   @default("")
+  participationType String @default("Team")
+  organization    String   @default("")
+  pptUrl          String   @default("")
+  githubUrl       String   @default("")
   demoUrl         String   @default("")
   videoUrl        String   @default("")
   notes           String   @default("")
+  spreadsheetRow  Int      @default(0)
+  evaluationStage String   @default("stage1") // stage1 (screening), stage2 (deep)
+  isShortlisted   Boolean  @default(false)
+  jobStatus       String   @default("PENDING") // PENDING, QUEUED, PROCESSING, COMPLETED, FAILED, RETRYING
+  jobError        String   @default("")
+  jobAttempts     Int      @default(0)
   status          String   @default("draft") // draft, analyzing, analyzed, reviewed, finalized
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -126,6 +140,8 @@ model EvaluationResult {
   weaknesses       String   @default("[]") // JSON array
   risks            String   @default("[]") // JSON array
   missingInfo      String   @default("[]") // JSON array
+  verifiedEvidence String   @default("[]") // JSON array of verified evidence points
+  unverifiedClaims String   @default("[]") // JSON array of unverified claims/risks
   recommendation   String   @default("") // reject, consider, shortlist, finalist, winner_candidate
   judgeScore       Float    @default(0) // 0-10
   codeScore        Float    @default(0) // 0-10

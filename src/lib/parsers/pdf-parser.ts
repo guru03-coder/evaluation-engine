@@ -62,7 +62,9 @@ export async function parsePdf(buffer: Buffer): Promise<PdfExtractionResult> {
   let pageCount = 0;
 
   try {
-    const pdfParse = (await import("pdf-parse")).default;
+    const pdfParseMod = await import("pdf-parse");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfParse = (pdfParseMod as any).default || pdfParseMod;
     const data = await pdfParse(buffer);
     rawText = data.text;
     pageCount = data.numpages;

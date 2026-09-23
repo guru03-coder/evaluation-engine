@@ -37,10 +37,17 @@ import {
   formatFileSize,
   parseJsonSafe,
 } from "@/lib/utils";
+import { RadialGauge } from "@/components/ui/motion/radial-gauge";
+import { TextScramble } from "@/components/ui/motion/text-scramble";
+import { TiltCard } from "@/components/ui/motion/tilt-card";
+import { BorderBeam } from "@/components/ui/motion/border-beam";
+import { fireCelebrationConfetti } from "@/components/ui/motion/confetti-trigger";
+import { AmbientBackground } from "@/components/ui/motion/ambient-background";
 
 interface SessionData {
   id: string;
   teamName: string;
+  projectName?: string | null;
   teamId: string;
   university: string;
   members: string;
@@ -49,6 +56,7 @@ interface SessionData {
   videoUrl: string;
   notes: string;
   status: string;
+  isShortlisted?: boolean;
   createdAt: string;
   updatedAt: string;
   createdBy: { name: string; email: string };
@@ -87,6 +95,8 @@ interface SessionData {
     weaknesses: string;
     risks: string;
     missingInfo: string;
+    verifiedEvidence?: string;
+    unverifiedClaims?: string;
     recommendation: string;
     judgeScore: number;
     codeScore: number;
@@ -109,6 +119,7 @@ interface SessionData {
         id: string;
         name: string;
         description: string;
+        weight?: number;
         template: { category: string; name: string };
       };
     }[];
@@ -142,6 +153,21 @@ export default function EvaluationDetailPage() {
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  useEffect(() => {
+    const res = session?.evaluationResult;
+    if (
+      res &&
+      (res.recommendation === "winner_candidate" ||
+        res.recommendation === "finalist" ||
+        res.finalScore >= 8.5)
+    ) {
+      const timer = setTimeout(() => {
+        fireCelebrationConfetti();
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [session?.evaluationResult]);
 
   async function handleAnalyze() {
     setAnalyzing(true);
@@ -228,17 +254,37 @@ export default function EvaluationDetailPage() {
   const weaknesses = result ? parseJsonSafe<string[]>(result.weaknesses, []) : [];
   const risks = result ? parseJsonSafe<string[]>(result.risks, []) : [];
   const missingInfo = result ? parseJsonSafe<string[]>(result.missingInfo, []) : [];
+  const verifiedEvidence = result ? parseJsonSafe<string[]>(result.verifiedEvidence || "[]", []) : [];
+  const unverifiedClaims = result ? parseJsonSafe<string[]>(result.unverifiedClaims || "[]", []) : [];
 
-  const judgeScores = result?.scores.filter((s) => s.criterion.template.category === "judge_evaluation") || [];
-  const codeScores = result?.scores.filter((s) => s.criterion.template.category === "code_review") || [];
+  const officialScores = result?.scores.filter(
+    (s) => s.criterion.template?.category === "hackday_official"
+  ) || [];
+  const displayScores = officialScores.length > 0 ? officialScores : (result?.scores || []);
+  const judgeScores = result?.scores.filter((s) => s.criterion.template?.category === "judge_evaluation") || [];
+  const codeScores = result?.scores.filter((s) => s.criterion.template?.category === "code_review") || [];
+
+  const getCriterionScore = (key: string) => {
+    return displayScores.find((s) => s.criterion.name.toLowerCase().includes(key.toLowerCase()))?.score ?? 0;
+  };
+  const problemImpactScore = getCriterionScore("problem");
+  const innovationScore = getCriterionScore("innovation");
+  const technicalScore = getCriterionScore("technical");
+  const uxScore = getCriterionScore("user");
+  const feasibilityScore = getCriterionScore("feasibility");
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <AmbientBackground showGrid={false} className="space-y-6 animate-fade-in -m-6 p-6">
+      {/* Header with TextScramble */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h2 className="text-2xl font-bold tracking-tight">{session.teamName}</h2>
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">
+              <TextScramble text={session.projectName || session.teamName} duration={850} />
+            </h2>
+            {session.projectName && (
+              <span className="text-sm text-muted-foreground font-medium">by {session.teamName}</span>
+            )}
             <Badge className={getStatusColor(session.status)}>{session.status}</Badge>
             {result?.isFinalized && (
               <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
@@ -247,10 +293,10 @@ export default function EvaluationDetailPage() {
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            {session.university || "No university"} &middot; {session.category} &middot; Created {formatDate(session.createdAt)}
+            {session.university || "General Track"} &middot; {session.category} &middot; Created {formatDate(session.createdAt)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {session.status === "draft" && (
             <Button variant="glow" onClick={handleAnalyze} disabled={analyzing}>
               {analyzing ? (
@@ -282,12 +328,26 @@ export default function EvaluationDetailPage() {
             </>
           )}
           {result && (
-            <a href={`/api/evaluations/${id}/export?format=json`} download>
-              <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
-                Export
-              </Button>
-            </a>
+            <div className="flex items-center gap-1 border border-border/80 rounded-lg p-0.5 bg-secondary/40 shadow-sm">
+              <span className="text-xs text-muted-foreground px-2 font-medium flex items-center gap-1">
+                <Download className="h-3.5 w-3.5" /> Export:
+              </span>
+              <a href={`/api/evaluations/${id}/export?format=pdf`} download>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs font-medium hover:bg-primary/20 hover:text-primary">
+                  PDF Report
+                </Button>
+              </a>
+              <a href={`/api/evaluations/${id}/export?format=json`} download>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-secondary">
+                  JSON
+                </Button>
+              </a>
+              <a href={`/api/evaluations/${id}/export?format=csv`} download>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-secondary">
+                  CSV
+                </Button>
+              </a>
+            </div>
           )}
         </div>
       </div>
@@ -308,46 +368,198 @@ export default function EvaluationDetailPage() {
         </Card>
       )}
 
-      {/* Score Summary (when results exist) */}
+      {/* Score Summary with Codrops RadialGauge and 3D TiltCards */}
       {result && result.finalScore > 0 && (
-        <div className="grid grid-cols-4 gap-4">
-          <Card className={`glass ${getScoreBgColor(result.finalScore)}`}>
-            <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Final Score</p>
-              <p className={`text-4xl font-bold ${getScoreColor(result.finalScore)}`}>
-                {result.finalScore.toFixed(1)}
+        <div className="space-y-4">
+          {/* Top Level: Total 100-Point Score & Recommendation */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <TiltCard maxTilt={8} glare={true}>
+              <Card className="glass h-full border-border/40 shadow-xl flex flex-col items-center justify-center p-4">
+                <RadialGauge
+                  score={result.finalScore <= 10 ? result.finalScore * 10 : result.finalScore}
+                  confidence={result.aiConfidence}
+                  label="100-Point Score"
+                />
+              </Card>
+            </TiltCard>
+
+            <TiltCard maxTilt={8} glare={true}>
+              <Card className="glass relative overflow-hidden h-full border-border/40 shadow-xl">
+                <BorderBeam size={220} duration={8} colorFrom="#10b981" colorTo="#06b6d4" />
+                <CardContent className="p-6 text-center flex flex-col items-center justify-center h-full relative z-10">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Official Recommendation</p>
+                  <Badge className={`mt-3 text-sm px-3.5 py-1.5 font-bold shadow-sm ${getRecommendationColor(result.recommendation)}`}>
+                    {getRecommendationLabel(result.recommendation)}
+                  </Badge>
+                  <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                      Confidence: {(result.aiConfidence * 100).toFixed(0)}%
+                    </span>
+                    <span>&middot;</span>
+                    <span className={session.isShortlisted ? "text-emerald-400 font-semibold" : ""}>
+                      {session.isShortlisted ? "Shortlisted for Jury" : "Screening Pool"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </TiltCard>
+
+            <TiltCard maxTilt={8} glare={true}>
+              <Card className="glass h-full border-border/40 shadow-lg">
+                <CardContent className="p-6 text-center flex flex-col items-center justify-center h-full">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Judging Rubric</p>
+                  <p className="text-xl font-bold text-foreground mt-2">HACKDAY 1.0</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    5 Published Criteria &middot; 100 Points Total
+                  </p>
+                  <Badge variant="outline" className="mt-3 text-xs border-primary/30 text-primary bg-primary/10">
+                    Evidence-Audited
+                  </Badge>
+                </CardContent>
+              </Card>
+            </TiltCard>
+          </div>
+
+          {/* 5 Official HACKDAY 1.0 Categories */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* 1. Problem & Impact (25 pts) */}
+            <Card className="glass border-border/40 shadow-sm p-4 hover:border-amber-500/40 transition-colors">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  💡 Problem & Impact
+                </span>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">25%</Badge>
+              </div>
+              <p className={`text-2xl font-black ${getScoreColor(problemImpactScore, 25)}`}>
+                {problemImpactScore.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ 25</span>
               </p>
-              <p className="text-xs text-muted-foreground mt-1">/ 10.0</p>
-            </CardContent>
-          </Card>
-          <Card className="glass">
-            <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Judge Score (60%)</p>
-              <p className={`text-3xl font-bold ${getScoreColor(result.judgeScore)}`}>
-                {result.judgeScore.toFixed(1)}
+              <Progress value={(problemImpactScore / 25) * 100} className="h-1.5 mt-2" />
+            </Card>
+
+            {/* 2. Innovation (20 pts) */}
+            <Card className="glass border-border/40 shadow-sm p-4 hover:border-blue-500/40 transition-colors">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  🚀 Innovation
+                </span>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">20%</Badge>
+              </div>
+              <p className={`text-2xl font-black ${getScoreColor(innovationScore, 20)}`}>
+                {innovationScore.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ 20</span>
               </p>
-            </CardContent>
-          </Card>
-          <Card className="glass">
-            <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Code Score (40%)</p>
-              <p className={`text-3xl font-bold ${getScoreColor(result.codeScore)}`}>
-                {result.codeScore.toFixed(1)}
+              <Progress value={(innovationScore / 20) * 100} className="h-1.5 mt-2" />
+            </Card>
+
+            {/* 3. Technical Implementation (25 pts) */}
+            <Card className="glass border-border/40 shadow-sm p-4 hover:border-purple-500/40 transition-colors">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  💻 Tech Implement.
+                </span>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">25%</Badge>
+              </div>
+              <p className={`text-2xl font-black ${getScoreColor(technicalScore, 25)}`}>
+                {technicalScore.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ 25</span>
               </p>
-            </CardContent>
-          </Card>
-          <Card className={`glass ${getRecommendationColor(result.recommendation)}`}>
-            <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Recommendation</p>
-              <p className="text-xl font-bold mt-1">
-                {getRecommendationLabel(result.recommendation)}
+              <Progress value={(technicalScore / 25) * 100} className="h-1.5 mt-2" />
+            </Card>
+
+            {/* 4. User Experience (15 pts) */}
+            <Card className="glass border-border/40 shadow-sm p-4 hover:border-emerald-500/40 transition-colors">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  🎨 User Experience
+                </span>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">15%</Badge>
+              </div>
+              <p className={`text-2xl font-black ${getScoreColor(uxScore, 15)}`}>
+                {uxScore.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ 15</span>
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Confidence: {(result.aiConfidence * 100).toFixed(0)}%
+              <Progress value={(uxScore / 15) * 100} className="h-1.5 mt-2" />
+            </Card>
+
+            {/* 5. Feasibility & Scalability (15 pts) */}
+            <Card className="glass border-border/40 shadow-sm p-4 hover:border-cyan-500/40 transition-colors">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  📈 Feasibility & Scal.
+                </span>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">15%</Badge>
+              </div>
+              <p className={`text-2xl font-black ${getScoreColor(feasibilityScore, 15)}`}>
+                {feasibilityScore.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ 15</span>
               </p>
-            </CardContent>
-          </Card>
+              <Progress value={(feasibilityScore / 15) * 100} className="h-1.5 mt-2" />
+            </Card>
+          </div>
         </div>
+      )}
+
+      {/* Evidence Verification Audit (Jury Proof) with Codrops Animated Badges */}
+      {result && (verifiedEvidence.length > 0 || unverifiedClaims.length > 0) && (
+        <Card className="glass border-primary/30 shadow-2xl relative overflow-hidden">
+          <BorderBeam size={320} duration={10} colorFrom="#3b82f6" colorTo="#10b981" />
+          <CardHeader className="pb-3 relative z-10">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center glow-sm">
+                  <Shield className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold">Evidence Verification Audit (Jury Review)</CardTitle>
+                  <CardDescription className="text-xs">
+                    Cross-checked claims from submission pitch against actual code repository and live deployment
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 font-medium">
+                AI Confidence: {(result.aiConfidence * 100).toFixed(0)}%
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 relative z-10">
+            {/* Verified Evidence */}
+            <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/15 space-y-2.5 backdrop-blur-md">
+              <p className="text-xs font-bold text-emerald-400 flex items-center gap-2 uppercase tracking-wider">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 animate-pulse" />
+                Verified Implementation Evidence ({verifiedEvidence.length})
+              </p>
+              {verifiedEvidence.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No implementation artifacts verified yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {verifiedEvidence.map((item, i) => (
+                    <li key={i} className="text-xs text-foreground/95 flex items-start gap-2 leading-relaxed bg-black/20 p-2 rounded-lg border border-emerald-500/20">
+                      <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
+                      <span>{item.replace(/^✓\s*/, "")}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Unverified / Missing Claims */}
+            <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-950/15 space-y-2.5 backdrop-blur-md">
+              <p className="text-xs font-bold text-amber-400 flex items-center gap-2 uppercase tracking-wider">
+                <AlertTriangle className="h-4 w-4 text-amber-400 animate-pulse" />
+                Could Not Verify / Implementation Gaps ({unverifiedClaims.length})
+              </p>
+              {unverifiedClaims.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">All asserted claims have verifiable code evidence.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {unverifiedClaims.map((item, i) => (
+                    <li key={i} className="text-xs text-muted-foreground flex items-start gap-2 leading-relaxed bg-black/20 p-2 rounded-lg border border-amber-500/20">
+                      <span className="text-amber-400 font-bold shrink-0 mt-0.5">⚠</span>
+                      <span>{item.replace(/^⚠\s*/, "")}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Main Content Tabs */}
@@ -683,43 +895,26 @@ export default function EvaluationDetailPage() {
         <TabsContent value="scoring" className="space-y-6">
           {result && (
             <>
-              {/* Judge Evaluation Scores */}
+              {/* Official HACKDAY 1.0 Rubric Scores */}
               <Card className="glass">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="h-5 w-5 text-amber-400" />
-                    Judge Evaluation (60% weight)
-                  </CardTitle>
-                  <CardDescription>
-                    Proposal and presentation assessment criteria
-                  </CardDescription>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Lightbulb className="h-5 w-5 text-amber-400" />
+                        Official HACKDAY 1.0 Rubric (100 Points Total)
+                      </CardTitle>
+                      <CardDescription>
+                        5 Published judging categories evaluated against verified submission evidence
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-sm px-3.5 py-1.5 bg-primary/10 border-primary/30 text-primary font-bold">
+                      Total: {displayScores.reduce((sum, s) => sum + (editedScores[s.id]?.score ?? s.score), 0).toFixed(1)} / 100
+                    </Badge>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {judgeScores.map((score) => (
-                    <ScoreRow
-                      key={score.id}
-                      score={score}
-                      editedScore={editedScores[score.id]?.score}
-                      onScoreChange={(newScore) => handleScoreChange(score.id, newScore)}
-                      disabled={result.isFinalized}
-                    />
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Code Review Scores */}
-              <Card className="glass">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Code2 className="h-5 w-5 text-blue-400" />
-                    Code Review (40% weight)
-                  </CardTitle>
-                  <CardDescription>
-                    Technical implementation assessment criteria
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {codeScores.map((score) => (
+                  {displayScores.map((score) => (
                     <ScoreRow
                       key={score.id}
                       score={score}
@@ -750,7 +945,7 @@ export default function EvaluationDetailPage() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </AmbientBackground>
   );
 }
 
@@ -771,7 +966,7 @@ function ScoreRow({
     evidence: string;
     confidence: number;
     isManualOverride: boolean;
-    criterion: { name: string; description: string };
+    criterion: { name: string; description: string; weight?: number };
   };
   editedScore?: number;
   onScoreChange: (score: number) => void;
@@ -779,6 +974,16 @@ function ScoreRow({
 }) {
   const currentScore = editedScore ?? score.score;
   const evidence = parseJsonSafe<string[]>(score.evidence, []);
+  const critNameLower = score.criterion.name.toLowerCase();
+
+  const maxScore =
+    score.criterion.weight && score.criterion.weight > 1
+      ? score.criterion.weight
+      : (critNameLower.includes("problem") || critNameLower.includes("impact") || critNameLower.includes("technical")
+        ? 25
+        : (critNameLower.includes("innovation")
+          ? 20
+          : 15));
 
   return (
     <div className="p-4 rounded-xl border border-border/30 bg-secondary/20 space-y-3">
@@ -786,6 +991,9 @@ function ScoreRow({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h4 className="font-medium text-sm">{score.criterion.name}</h4>
+            <Badge variant="secondary" className="text-[10px] font-mono">
+              Max {maxScore} pts
+            </Badge>
             {score.isManualOverride && (
               <Badge variant="outline" className="text-xs text-amber-400 border-amber-500/30">
                 Overridden
@@ -801,16 +1009,16 @@ function ScoreRow({
           <div className="flex items-center gap-2">
             <input
               type="range"
-              min="1"
-              max="10"
+              min="0"
+              max={maxScore}
               step="0.5"
               value={currentScore}
               onChange={(e) => onScoreChange(parseFloat(e.target.value))}
               disabled={disabled}
-              className="w-24 h-1.5 accent-primary"
+              className="w-28 h-1.5 accent-primary"
             />
-            <span className={`text-lg font-bold w-10 text-right ${getScoreColor(currentScore)}`}>
-              {currentScore.toFixed(1)}
+            <span className={`text-base font-bold w-16 text-right ${getScoreColor(currentScore, maxScore)}`}>
+              {currentScore.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ {maxScore}</span>
             </span>
           </div>
         </div>

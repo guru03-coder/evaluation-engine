@@ -11,9 +11,73 @@ export type Recommendation =
   | "finalist"
   | "winner_candidate";
 
-export type AssetType = "proposal_pdf" | "proposal_pptx" | "code_zip" | "code_github";
+export type RubricCategory = "proposal_screening" | "judge_evaluation" | "code_review" | "hackday_official";
 
-export type RubricCategory = "proposal_screening" | "judge_evaluation" | "code_review";
+// ============================================================
+// HACKDAY 1.0 Official 5-Category Types (100 Points Total)
+// ============================================================
+
+export interface ProblemImpactBreakdown {
+  problemClarity: number; // max 5
+  problemSignificance: number; // max 5
+  targetUserRelevance: number; // max 5
+  solutionImpact: number; // max 5
+  realWorldUsefulness: number; // max 5
+}
+
+export interface InnovationBreakdown {
+  originality: number; // max 5
+  novelApproach: number; // max 5
+  differentiation: number; // max 5
+  creativeTechUse: number; // max 5
+}
+
+export interface TechnicalImplementationBreakdown {
+  coreFunctionality: number; // max 7
+  technicalDepth: number; // max 5
+  technologySelection: number; // max 4
+  implementationQuality: number; // max 5
+  workingPrototype: number; // max 4
+}
+
+export interface UserExperienceBreakdown {
+  uiQuality: number; // max 4
+  easeOfUse: number; // max 3
+  userFlow: number; // max 3
+  responsiveDesign: number; // max 3
+  overallExperience: number; // max 2
+}
+
+export interface FeasibilityScalabilityBreakdown {
+  technicalFeasibility: number; // max 4
+  deploymentPracticality: number; // max 3
+  scalability: number; // max 4
+  futurePotential: number; // max 4
+}
+
+export interface HackdayEvaluationResult {
+  projectName: string;
+  problemImpactScore: number; // 0-25
+  innovationScore: number; // 0-20
+  technicalImplementationScore: number; // 0-25
+  userExperienceScore: number; // 0-15
+  feasibilityScalabilityScore: number; // 0-15
+  totalScore: number; // 0-100
+  aiConfidence: number; // 0.0 - 1.0
+  categoryBreakdown: {
+    problemImpact: { score: number; maxScore: 25; breakdown: ProblemImpactBreakdown; rationale: string; evidence: string[] };
+    innovation: { score: number; maxScore: 20; breakdown: InnovationBreakdown; rationale: string; evidence: string[] };
+    technicalImplementation: { score: number; maxScore: 25; breakdown: TechnicalImplementationBreakdown; rationale: string; evidence: string[] };
+    userExperience: { score: number; maxScore: 15; breakdown: UserExperienceBreakdown; rationale: string; evidence: string[] };
+    feasibilityScalability: { score: number; maxScore: 15; breakdown: FeasibilityScalabilityBreakdown; rationale: string; evidence: string[] };
+  };
+  strengths: string[];
+  weaknesses: string[];
+  verifiedEvidence: string[];
+  unverifiedClaims: string[];
+  recommendation: Recommendation;
+  rationale: string;
+}
 
 // ============================================================
 // Proposal Extraction
@@ -122,6 +186,8 @@ export interface AIFinalRecommendation {
   rationale: string;
   topStrengths: string[];
   topRisks: string[];
+  verifiedEvidence?: string[];
+  unverifiedClaims?: string[];
   confidence: number;
 }
 
@@ -188,6 +254,8 @@ export interface EvaluationExport {
   weaknesses: string[];
   risks: string[];
   missingInfo: string[];
+  verifiedEvidence?: string[];
+  unverifiedClaims?: string[];
   reviewerNotes: string;
   scores: {
     criterionName: string;

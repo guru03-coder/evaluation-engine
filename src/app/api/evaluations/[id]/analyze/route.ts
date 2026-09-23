@@ -8,6 +8,7 @@ import { parseZip } from "@/lib/parsers/zip-parser";
 import { analyzeGitHubRepo } from "@/lib/parsers/github-parser";
 import { evaluateProposal } from "@/lib/evaluation/proposal-evaluator";
 import { evaluateCode } from "@/lib/evaluation/code-evaluator";
+import { evaluateHackdaySubmission } from "@/lib/evaluation/hackday-evaluator";
 import {
   computeGroupScore,
   computeFinalScore,
@@ -182,115 +183,108 @@ export async function POST(
     });
 
     // ============================
-    // Step 3: AI Evaluation
+    // Step 3: Official HACKDAY 1.0 AI Evaluation
     // ============================
-    const proposalEval = await evaluateProposal(
-      proposalText || "No proposal text available.",
-      session.teamName,
-      session.category
-    );
-
-    const codeEval = await evaluateCode(codeAnalysis);
-
-    // ============================
-    // Step 4: Map scores to rubric criteria
-    // ============================
-    const judgeTemplate = await db.rubricTemplate.findFirst({
-      where: { category: "judge_evaluation", isDefault: true },
-      include: { criteria: { orderBy: { sortOrder: "asc" } } },
+    const hackdayEval = await evaluateHackdaySubmission({
+      projectName: session.projectName || session.teamName,
+      teamName: session.teamName,
+      organization: session.organization || session.university,
+      description: session.description || proposalText || session.notes || "No description provided.",
+      pptContent: proposalText || (session.pptUrl ? `Presentation URL: ${session.pptUrl}` : undefined),
+      demoUrl: session.demoUrl,
+      githubUrl: codeGithubAsset?.githubUrl || session.githubUrl,
+      notes: session.notes,
+      codeAnalysis,
     });
 
-    const codeTemplate = await db.rubricTemplate.findFirst({
-      where: { category: "code_review", isDefault: true },
+    // ============================
+    // Step 4: Map scores to official rubric criteria
+    // ============================
+    const officialTemplate = await db.rubricTemplate.findFirst({
+      where: { id: "hackday-1-official" },
       include: { criteria: { orderBy: { sortOrder: "asc" } } },
     });
 
     // Delete existing result if re-analyzing
     await db.evaluationResult.deleteMany({ where: { sessionId: id } });
 
-    // Create evaluation result
-    const judgeScoreAvg = computeGroupScore(proposalEval.criterionScores);
-    const codeScoreAvg = computeGroupScore(codeEval.criterionScores);
-    const allStrengths = [...proposalEval.strengths, ...codeEval.strengths];
-    const allWeaknesses = [...proposalEval.weaknesses, ...codeEval.weaknesses];
-    const allRisks = [...proposalEval.risks, ...codeEval.risks];
-
-    // Get final recommendation from AI
-    const finalRec = await generateFinalRecommendation(
-      proposalEval.summary,
-      codeEval.summary,
-      judgeScoreAvg,
-      codeScoreAvg,
-      allStrengths,
-      allWeaknesses,
-      allRisks
-    );
-
-    const finalScore = computeFinalScore(judgeScoreAvg, codeScoreAvg);
+    const finalScore = hackdayEval.totalScore;
 
     const evalResult = await db.evaluationResult.create({
       data: {
         sessionId: id,
-        proposalSummary: proposalEval.summary,
-        codeSummary: codeEval.summary,
-        strengths: JSON.stringify(allStrengths),
-        weaknesses: JSON.stringify(allWeaknesses),
-        risks: JSON.stringify(allRisks),
-        missingInfo: JSON.stringify(proposalEval.missingInfo),
-        recommendation: finalRec.recommendation,
-        judgeScore: judgeScoreAvg,
-        codeScore: codeScoreAvg,
+        proposalSummary: hackdayEval.rationale,
+        codeSummary: hackdayEval.categoryBreakdown.technicalImplementation.rationale,
+        strengths: JSON.stringify(hackdayEval.strengths),
+        weaknesses: JSON.stringify(hackdayEval.weaknesses),
+        risks: JSON.stringify(hackdayEval.unverifiedClaims),
+        missingInfo: JSON.stringify([]),
+        verifiedEvidence: JSON.stringify(hackdayEval.verifiedEvidence),
+        unverifiedClaims: JSON.stringify(hackdayEval.unverifiedClaims),
+        recommendation: hackdayEval.recommendation,
+        judgeScore: parseFloat((hackdayEval.problemImpactScore + hackdayEval.innovationScore).toFixed(1)),
+        codeScore: hackdayEval.technicalImplementationScore,
         finalScore,
-        aiConfidence: (proposalEval.confidence + codeEval.confidence) / 2,
+        aiConfidence: hackdayEval.aiConfidence,
         reviewerNotes: "",
       },
     });
 
-    // Map and save individual criterion scores
-    if (judgeTemplate) {
-      for (const criterion of judgeTemplate.criteria) {
-        const aiScore = proposalEval.criterionScores.find(
-          (s) => s.criterionName.toLowerCase().includes(criterion.name.toLowerCase().split(" ")[0])
-        );
+    // Map and save individual criterion scores (5 official criteria)
+    if (officialTemplate) {
+      for (const criterion of officialTemplate.criteria) {
+        let score = 0;
+        let rationale = "";
+        let evidenceList: string[] = [];
+
+        const critNameLower = criterion.name.toLowerCase();
+        if (critNameLower.includes("problem") || critNameLower.includes("impact")) {
+          score = hackdayEval.problemImpactScore;
+          rationale = hackdayEval.categoryBreakdown.problemImpact.rationale;
+          evidenceList = hackdayEval.categoryBreakdown.problemImpact.evidence;
+        } else if (critNameLower.includes("innovation")) {
+          score = hackdayEval.innovationScore;
+          rationale = hackdayEval.categoryBreakdown.innovation.rationale;
+          evidenceList = hackdayEval.categoryBreakdown.innovation.evidence;
+        } else if (critNameLower.includes("technical") || critNameLower.includes("implementation")) {
+          score = hackdayEval.technicalImplementationScore;
+          rationale = hackdayEval.categoryBreakdown.technicalImplementation.rationale;
+          evidenceList = hackdayEval.categoryBreakdown.technicalImplementation.evidence;
+        } else if (critNameLower.includes("user") || critNameLower.includes("experience")) {
+          score = hackdayEval.userExperienceScore;
+          rationale = hackdayEval.categoryBreakdown.userExperience.rationale;
+          evidenceList = hackdayEval.categoryBreakdown.userExperience.evidence;
+        } else if (critNameLower.includes("feasibility") || critNameLower.includes("scalability")) {
+          score = hackdayEval.feasibilityScalabilityScore;
+          rationale = hackdayEval.categoryBreakdown.feasibilityScalability.rationale;
+          evidenceList = hackdayEval.categoryBreakdown.feasibilityScalability.evidence;
+        }
 
         await db.criterionScore.create({
           data: {
             resultId: evalResult.id,
             criterionId: criterion.id,
-            score: aiScore?.score || 5,
-            aiScore: aiScore?.score || 5,
-            rationale: aiScore?.rationale || "No AI assessment available for this criterion.",
-            evidence: JSON.stringify(aiScore?.evidence || []),
-            confidence: aiScore?.confidence || 0.5,
+            score,
+            aiScore: score,
+            rationale: rationale || `Evaluated against HACKDAY 1.0 ${criterion.name} criteria.`,
+            evidence: JSON.stringify(evidenceList),
+            confidence: hackdayEval.aiConfidence,
           },
         });
       }
     }
 
-    if (codeTemplate) {
-      for (const criterion of codeTemplate.criteria) {
-        const aiScore = codeEval.criterionScores.find(
-          (s) => s.criterionName.toLowerCase().includes(criterion.name.toLowerCase().split(" ")[0])
-        );
-
-        await db.criterionScore.create({
-          data: {
-            resultId: evalResult.id,
-            criterionId: criterion.id,
-            score: aiScore?.score || 5,
-            aiScore: aiScore?.score || 5,
-            rationale: aiScore?.rationale || "No AI assessment available for this criterion.",
-            evidence: JSON.stringify(aiScore?.evidence || []),
-            confidence: aiScore?.confidence || 0.5,
-          },
-        });
-      }
-    }
-
-    // Update session status
+    // Update session status & shortlist flag
     await db.evaluationSession.update({
       where: { id },
-      data: { status: "analyzed" },
+      data: {
+        status: "analyzed",
+        isShortlisted:
+          finalScore >= 65 ||
+          hackdayEval.recommendation === "shortlist" ||
+          hackdayEval.recommendation === "finalist" ||
+          hackdayEval.recommendation === "winner_candidate",
+      },
     });
 
     // Audit log
@@ -300,10 +294,13 @@ export async function POST(
         userId: user.id,
         action: "analysis_completed",
         details: JSON.stringify({
-          judgeScore: judgeScoreAvg,
-          codeScore: codeScoreAvg,
+          problemImpact: hackdayEval.problemImpactScore,
+          innovation: hackdayEval.innovationScore,
+          technicalImplementation: hackdayEval.technicalImplementationScore,
+          userExperience: hackdayEval.userExperienceScore,
+          feasibilityScalability: hackdayEval.feasibilityScalabilityScore,
           finalScore,
-          recommendation: finalRec.recommendation,
+          recommendation: hackdayEval.recommendation,
         }),
       },
     });
@@ -311,10 +308,15 @@ export async function POST(
     return NextResponse.json({
       success: true,
       data: {
-        judgeScore: judgeScoreAvg,
-        codeScore: codeScoreAvg,
+        problemImpactScore: hackdayEval.problemImpactScore,
+        innovationScore: hackdayEval.innovationScore,
+        technicalImplementationScore: hackdayEval.technicalImplementationScore,
+        userExperienceScore: hackdayEval.userExperienceScore,
+        feasibilityScalabilityScore: hackdayEval.feasibilityScalabilityScore,
         finalScore,
-        recommendation: finalRec.recommendation,
+        recommendation: hackdayEval.recommendation,
+        verifiedEvidence: hackdayEval.verifiedEvidence,
+        unverifiedClaims: hackdayEval.unverifiedClaims,
       },
     });
   } catch (error) {
